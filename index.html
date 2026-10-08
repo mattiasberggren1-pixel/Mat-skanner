@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D2A24">
+<title>Matskanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F4EE; --ink:#1D2A24; --muted:#5E6B63; --line:#D5DAD0; --card:#FFFFFF;
+  --good:#2F8F4E; --ok:#C9961A; --mid:#D9692B; --bad:#B3362E; --info:#4A6A8A;
+  --font:'Familjen Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--font);
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.5rem;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:1rem;font-weight:700;margin:28px 0 8px}
+button,input,textarea{font:inherit}
+:focus-visible{outline:3px solid #1D2A24;outline-offset:2px}
+.mode{margin:0 0 14px;color:var(--muted);font-size:.85rem}
+
+.viewfinder{position:relative;aspect-ratio:4/3;background:var(--ink);border-radius:14px;overflow:hidden}
+.viewfinder video{width:100%;height:100%;object-fit:cover;display:none}
+.viewfinder.on video{display:block}
+.viewfinder .idle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#E8EDE4;text-align:center;padding:24px}
+.viewfinder.on .idle{display:none}
+.frame{position:absolute;inset:18% 12%;border:2px solid rgba(255,255,255,.85);border-radius:8px;display:none}
+.viewfinder.on .frame{display:block}
+.frame::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:#fff;animation:sweep 2s ease-in-out infinite alternate}
+@keyframes sweep{to{top:calc(100% - 2px)}}
+@media (prefers-reduced-motion:reduce){.frame::after{animation:none;top:50%}}
+
+.row{display:flex;gap:8px;margin-top:12px}
+.btn{flex:1;min-height:48px;border:0;border-radius:10px;background:var(--ink);color:#fff;font-weight:700;cursor:pointer;padding:0 16px}
+.btn.sec{background:transparent;color:var(--ink);border:2px solid var(--ink)}
+.field{flex:1;min-height:48px;border:2px solid var(--line);border-radius:10px;padding:0 12px;background:var(--card);color:var(--ink);min-width:0;width:100%}
+.field:focus{border-color:var(--ink);outline:none}
+.area{padding:10px 12px;line-height:1.45;resize:vertical}
+.status{min-height:1.5em;margin:12px 0 0;color:var(--muted)}
+.status.err{color:var(--bad)}
+.link{all:unset;cursor:pointer;text-decoration:underline;font-weight:700;color:var(--ink);padding:8px 0;display:inline-block}
+.link:focus-visible{outline:3px solid #1D2A24;outline-offset:2px}
+.hint{color:var(--muted);font-size:.9rem;margin:0 0 8px}
+
+/* Förlopp */
+.steps{list-style:none;margin:14px 0 0;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+.steps li{display:flex;align-items:center;gap:12px;padding:5px 0}
+.steps .tx{flex:1}
+.steps .pc{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.85rem;text-align:right;max-width:45%;overflow-wrap:anywhere}
+.steps .mk{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;border:2px solid var(--line);color:#fff}
+.steps .pending{color:var(--muted)}
+.steps .skip{color:var(--muted);opacity:.6}
+.steps .skip .mk{border-style:dashed}
+.steps .active .mk{border-top-color:var(--ink);animation:spin .9s linear infinite}
+.steps .active .tx{font-weight:700}
+.steps .done .mk{background:var(--good);border-color:var(--good)}
+.steps .done .mk::before{content:"\2713"}
+.steps .fail .mk{background:var(--bad);border-color:var(--bad)}
+.steps .fail .mk::before{content:"\2715"}
+.steps .fail .tx{color:var(--bad)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.steps .active .mk{animation:none}}
+
+/* Resultat */
+.result{margin-top:20px;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.head{display:flex;gap:14px;padding:16px;align-items:center}
+.head img{width:72px;height:72px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--line);flex:none}
+.head .noimg{width:72px;height:72px;border-radius:8px;background:var(--bg);flex:none}
+.head .name{font-weight:700;line-height:1.25;overflow-wrap:anywhere}
+.head .sub{color:var(--muted);font-size:.9rem}
+.verdict{display:flex;align-items:baseline;gap:12px;padding:14px 16px;color:#fff;background:var(--c)}
+.verdict .num{font-size:3.5rem;font-weight:700;line-height:1;letter-spacing:-.03em}
+.verdict .of{opacity:.8}
+.verdict .word{margin-left:auto;font-weight:700;font-size:1.15rem}
+.note{padding:12px 16px 0;color:var(--bad);font-weight:500}
+.note.soft{color:var(--muted);font-weight:400}
+.part{padding:14px 16px;border-top:1px solid var(--line)}
+.part .top{display:flex;justify-content:space-between;gap:12px;font-weight:700}
+.part .top span:last-child{font-variant-numeric:tabular-nums}
+.part .desc{color:var(--muted);font-size:.9rem;margin-top:2px}
+.bar{height:8px;background:var(--bg);border-radius:4px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c);border-radius:4px}
+.foot{padding:12px 16px 16px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+.foot a{color:inherit}
+
+/* Ingredienser med förklaring */
+.ing{border-top:1px solid var(--line);padding:2px 0}
+.ing:first-of-type{border-top:0}
+.ing summary{display:flex;gap:10px;align-items:center;padding:10px 0;cursor:pointer;list-style:none;min-height:44px}
+.ing summary::-webkit-details-marker{display:none}
+.ing summary::after{content:"\25BE";margin-left:auto;color:var(--muted);transition:transform .15s}
+.ing[open] summary::after{transform:rotate(180deg)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.ing .nm{font-weight:500;overflow-wrap:anywhere}
+.ing .rk{color:var(--muted);font-size:.85rem;white-space:nowrap}
+.ing .body{padding:0 0 12px 20px;font-size:.95rem}
+.ing .src{color:var(--muted);font-size:.85rem;margin-top:6px;overflow-wrap:anywhere}
+.ing .src a{color:inherit}
+.badge{display:inline-block;margin-top:8px;padding:2px 8px;border-radius:6px;background:var(--bg);color:var(--ink);font-size:.8rem;font-weight:500}
+.unres{margin-top:10px;color:var(--muted);font-size:.9rem}
+
+/* Historik och inställningar */
+.hist{list-style:none;margin:0;padding:0}
+.hist button{all:unset;box-sizing:border-box;display:flex;gap:12px;align-items:center;width:100%;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.hist .s{min-width:44px;text-align:center;color:#fff;font-weight:700;border-radius:8px;padding:4px 0;background:var(--c)}
+.hist .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel{margin-top:24px;border-top:1px solid var(--line);padding-top:8px}
+.panel summary{cursor:pointer;font-weight:700;padding:10px 0;min-height:44px}
+.panel label{display:block;margin:12px 0 4px;font-weight:500}
+.panel p{color:var(--muted);font-size:.9rem;margin:6px 0}
+.legal{margin-top:24px;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+  <h1>Matskanner</h1>
+  <p class="mode" id="mode"></p>
+
+  <div class="viewfinder" id="vf">
+    <video id="video" playsinline muted></video>
+    <div class="frame"></div>
+    <div class="idle">Tryck på Skanna streckkod, eller på Läs ingredienser från foto för att ta en bild direkt här.</div>
+  </div>
+  <div class="row"><button class="btn" id="scanBtn" type="button">Skanna streckkod</button></div>
+  <div class="row">
+    <input class="field" id="code" inputmode="numeric" pattern="[0-9]*" placeholder="Eller skriv streckkoden" aria-label="Streckkod">
+    <button class="btn sec" id="lookupBtn" type="button" style="flex:0 0 auto">Sök</button>
+  </div>
+  <div class="row"><button class="btn sec" id="ocrBtn" type="button">Läs ingredienser från foto</button></div>
+  <div class="row"><button class="btn" id="shotBtn" type="button" hidden>Ta bild</button></div>
+  <button class="link" id="galleryBtn" type="button">Välj en befintlig bild istället</button>
+  <input type="file" id="photo" accept="image/*" hidden>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <ol class="steps" id="steps" hidden aria-live="polite"></ol>
+
+  <section id="editor" hidden>
+    <h2>Kontrollera texten</h2>
+    <p class="hint">Textläsning gör fel. Rätta det som är fel, särskilt E-nummer, och tryck Analysera.</p>
+    <p class="hint" id="ocrBind" hidden></p>
+    <textarea class="field area" id="ocrText" rows="8" aria-label="Utläst ingredienstext"></textarea>
+    <input class="field" id="ocrName" style="margin-top:8px" placeholder="Produktnamn (valfritt, hjälper databasen)" aria-label="Produktnamn">
+    <div class="row"><button class="btn" id="analyzeBtn" type="button">Analysera</button></div>
+  </section>
+
+  <div id="out"></div>
+
+  <h2 id="histH" hidden>Senast skannade</h2>
+  <ul class="hist" id="hist"></ul>
+
+  <details class="panel">
+    <summary>Så bedöms risk</summary>
+    <p><b>Hög:</b> förbjuden i EU, eller klassad av IARC som cancerframkallande (grupp 1 eller 2A) i matrelevant användning.</p>
+    <p><b>Måttlig:</b> EU-varning, IARC grupp 2B, EFSA-oro eller tydliga studier där orsakssamband inte är fastställt.</p>
+    <p><b>Låg:</b> godkänd utan känd oro vid normalt intag.</p>
+    <p><b>Information:</b> inte tillsatser, men bra att veta (socker, salt, palmolja). Räknas inte i tillsatsbetyget.</p>
+    <p><b>Ej bedömd:</b> ämnet finns inte i databasen och ingen källa hittades. Appen gissar aldrig.</p>
+  </details>
+
+  <details class="panel">
+    <summary>Inställningar</summary>
+    <p>Utan inställningar använder appen bara den inbyggda ingrediensdatabasen. Fyll i något av alternativen nedan för att den ska kunna slå upp okända ämnen på nätet.</p>
+    <label for="cfgKey">Din Anthropic API-nyckel (personligt läge)</label>
+    <input class="field" id="cfgKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+    <p>Nyckeln sparas bara i den här telefonens webbläsare och skickas bara till Anthropic. Använd aldrig det här läget om du delar appen med andra, och sätt en utgiftsgräns i Anthropic Console.</p>
+    <label for="cfgUrl">Supabase-adress (delat läge)</label>
+    <input class="field" id="cfgUrl" type="url" autocomplete="off" placeholder="https://xxxx.supabase.co">
+    <label for="cfgAnon">Supabase anon-nyckel</label>
+    <input class="field" id="cfgAnon" type="password" autocomplete="off" placeholder="eyJ...">
+    <div class="row"><button class="btn" id="cfgSave" type="button">Spara</button></div>
+    <p id="cfgMsg" role="status"></p>
+    <div class="row"><button class="btn sec" id="cfgClear" type="button">Rensa lokal databas</button></div>
+  </details>
+
+  <p class="legal">Produktdata kommer från Open Food Facts (öppen, användarbidragen databas). Fotoläsning sker i din webbläsare och bilden lämnar inte telefonen. Betyget är en förenklad modell och inget medicinskt råd. Förklaringarna i den inbyggda databasen är en egen sammanställning från offentliga källor (EFSA, IARC, EU). Bedömningar som hämtats på nätet av en AI är markerade och kan vara fel.</p>
+</main>
+
+<script>
+/* ================= Hjälpfunktioner ================= */
+function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+function keyOf(s){ return String(s).toLowerCase().replace(/\s+/g,' ').trim(); }
+function hash(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); }
+
+/* ==TESTABLE-START== */
+/* ================= Inbyggd ingrediensdatabas =================
+   Format: A(kod, namn, risk, förklaring, källa, [alias])
+   risk: 'hög' | 'mellan' | 'låg' | 'info'   Lägg gärna till egna rader. */
+const KB = [], BYE = {};
+function A(code,name,risk,effect,source,aliases){
+  const e = {code, name, risk, effect, source, aliases:[name.toLowerCase(), ...(aliases||[]).map(x=>x.toLowerCase())]};
+  KB.push(e); if(code) BYE[code] = e; return e;
+}
+const SOUTH = 'Ingår i de sex färger som EU kräver varningstext för: "kan inverka negativt på barns aktivitet och uppmärksamhet". Grunden är Southampton-studien 2007, där blandningar av dessa färger och natriumbensoat gav något mer hyperaktivt beteende hos en del barn. Effekten är liten och orsakssamband för enskilda färger är inte bevisat.';
+const SRC_S = 'EU-förordning 1333/2008, McCann m.fl., Lancet 2007';
+const SULF = 'Sulfiter kan utlösa astmaattacker, nässelutslag och magbesvär hos känsliga personer, särskilt astmatiker. Måste anges på etiketten över 10 mg/kg. För de flesta är normalt intag ofarligt.';
+const PHOS = 'Högt intag av fosfater från tillsatser har i observationsstudier kopplats till sämre njurfunktion och kärlförkalkning, främst hos personer med nedsatt njurfunktion. EFSA såg 2019 att intaget kan ligga över den säkra nivån hos vissa grupper, bland annat barn.';
+const POLY = 'Sockeralkohol. Kan ge gaser och lös mage vid större mängder (EU kräver varning på produkter med över 10 % sockeralkohol). Påverkar blodsockret mindre än socker.';
+const GUM = 'Förtjockningsmedel av växtfibrer. Ofarligt vid normalt intag; stora mängder kan ge gaser och lös mage.';
+const ACID = 'Syra som används för smak och hållbarhet. Ofarlig vid normalt intag. Sura drycker kan i stora mängder över tid skada tandemaljen.';
+const EMUL = 'Emulgeringsmedel. Inga påvisade skador vid normalt intag. Observationsstudier har kopplat högt intag av vissa emulgeringsmedel till små riskökningar, men orsakssamband är inte visat.';
+
+/* Färger */
+A('e100','Kurkumin','låg','Gul färg från gurkmeja. Inga kända risker vid normalt intag.','EFSA 2014');
+A('e101','Riboflavin','låg','Vitamin B2 som används som gul färg. Ofarligt vid normalt intag.','EFSA');
+A('e102','Tartrazin','mellan',SOUTH,SRC_S);
+A('e104','Kinolingult','mellan',SOUTH,SRC_S);
+A('e110','Gul orange S','mellan',SOUTH,SRC_S,['sunset yellow']);
+A('e122','Azorubin','mellan',SOUTH,SRC_S,['karmoisin']);
+A('e124','Ponceau 4R','mellan',SOUTH,SRC_S,['cochenillrött a']);
+A('e129','Allurarött AC','mellan',SOUTH,SRC_S,['allura red']);
+A('e120','Karmin','låg','Röd färg från sköldlöss, alltså inte vegetarisk eller vegansk. Kan i sällsynta fall ge allergiska reaktioner.','EFSA 2015',['kochenill','karminsyra','cochenille']);
+A('e123','Amarant','mellan','Röd färg som är förbjuden i USA sedan 1976 på grund av misstanke om cancerframkallande effekt, vilket inte har bevisats. Tillåten i EU i begränsad mängd.','EFSA 2010, FDA');
+A('e127','Erytrosin','mellan','Röd färg som i höga doser kan påverka sköldkörteln (innehåller jod). Tillåten i EU i begränsad mängd, bland annat på cocktailbär.','EFSA 2011');
+A('e128','Rött 2G','hög','Förbjuden som livsmedelstillsats i EU sedan 2007 eftersom den bryts ned till ett ämne som misstänks vara cancerframkallande. Ska inte finnas i mat på EU-marknaden.','EFSA 2007');
+A('e131','Patentblått V','låg','Syntetisk blå färg. Inga kända risker vid normalt intag; allergiska reaktioner är mycket sällsynta.','EFSA 2013');
+A('e132','Indigokarmin','låg','Syntetisk blå färg. Inga kända risker vid normalt intag.','EFSA 2014');
+A('e133','Briljantblått FCF','låg','Syntetisk blå färg. Inga kända risker vid normalt intag.','EFSA 2010');
+A('e150','Karamellfärg','låg','Karamellfärg anges ibland utan klass. Klass III och IV (E150c, E150d) innehåller små mängder 4-MEI, se dem för detaljer.','EFSA 2011',['karamellfärg','sockerkulör']);
+A('e150a','Karamellfärg (E150a)','låg','Enkel karamellfärg av upphettat socker. Inga kända risker vid normalt intag.','EFSA 2011');
+A('e150b','Karamellfärg (E150b)','låg','Karamellfärg framställd med sulfit. Inga kända risker vid normalt intag.','EFSA 2011');
+const C4 = 'Karamellfärg tillverkad med ammoniak bildar små mängder 4-metylimidazol (4-MEI), som IARC klassat som möjligen cancerframkallande (grupp 2B). EFSA har satt en gräns för tillåtet intag, och vanligt intag ligger normalt under den.';
+A('e150c','Ammoniakkaramell (E150c)','mellan',C4,'IARC 2013, EFSA 2011');
+A('e150d','Sulfitammoniakkaramell (E150d)','mellan',C4,'IARC 2013, EFSA 2011',['ammoniumsulfitkaramell']);
+A('e160a','Betakaroten','låg','Orange färg och förstadium till vitamin A. Ofarlig vid vanligt intag.','EFSA 2012',['karoten']);
+A('e160b','Annatto','låg','Gulorange färg från annattofrön. Kan i sällsynta fall ge allergiska reaktioner.','EFSA 2016',['annatto','norbixin','bixin']);
+A('e160c','Paprikaextrakt','låg','Orangeröd färg från paprika. Ofarlig vid normalt intag.','EFSA 2015');
+A('e162','Rödbetsfärg','låg','Röd färg från rödbetor. Ofarlig.','EFSA',['betanin']);
+A('e163','Antocyaner','låg','Röd till blå färg från bär och grönsaker. Ofarlig.','EFSA 2013');
+A('e171','Titandioxid','hög','Förbjuden som livsmedelstillsats i EU sedan 2022 eftersom EFSA inte kunde utesluta att nanopartiklar skadar arvsmassan och eftersom ämnet kan ansamlas i kroppen.','EFSA 2021, EU 2022/63');
+A('e172','Järnoxider','låg','Mineralfärger (gul, röd, svart). Inga kända risker vid normalt intag.','EFSA 2015');
+
+/* Konserveringsmedel */
+A('e200','Sorbinsyra','låg','Konserveringsmedel mot mögel och jäst. Ofarligt vid normalt intag; kan ge hudirritation hos känsliga.','EFSA 2015');
+A('e202','Kaliumsorbat','låg','Konserveringsmedel mot mögel och jäst. Ofarligt vid normalt intag.','EFSA 2015');
+const BENZ = 'Konserveringsmedel. Kan tillsammans med C-vitamin bilda spår av bensen (cancerframkallande), särskilt i läsk som utsätts för värme eller ljus. Ingår i blandningarna i Southampton-studien.';
+A('e210','Bensoesyra','mellan',BENZ,'EFSA 2016');
+A('e211','Natriumbensoat','mellan',BENZ,'EFSA 2016');
+A('e212','Kaliumbensoat','mellan',BENZ,'EFSA 2016');
+A('e213','Kalciumbensoat','mellan',BENZ,'EFSA 2016');
+A('e220','Svaveldioxid','mellan',SULF,'EFSA 2016',['sulfiter','sulfit']);
+A('e221','Natriumsulfit','mellan',SULF,'EFSA 2016');
+A('e222','Natriumvätesulfit','mellan',SULF,'EFSA 2016');
+A('e223','Natriummetabisulfit','mellan',SULF,'EFSA 2016');
+A('e224','Kaliummetabisulfit','mellan',SULF,'EFSA 2016');
+A('e226','Kalciumsulfit','mellan',SULF,'EFSA 2016');
+A('e227','Kalciumvätesulfit','mellan',SULF,'EFSA 2016');
+A('e228','Kaliumvätesulfit','mellan',SULF,'EFSA 2016');
+const NIT = 'Nitrit i charkprodukter hindrar bakterier (bland annat botulism) men kan i kroppen och vid stekning bilda nitrosaminer, som är cancerframkallande. IARC bedömer att intag av nitrit under förhållanden som ger nitrosaminbildning troligen är cancerframkallande (grupp 2A), och bearbetat kött klassas som cancerframkallande (grupp 1).';
+A('e249','Kaliumnitrit','hög',NIT,'IARC 2010 och 2015');
+A('e250','Natriumnitrit','hög',NIT,'IARC 2010 och 2015',['nitritsalt','nitrit']);
+A('e251','Natriumnitrat','mellan','Nitrat omvandlas delvis till nitrit i kroppen och ger samma oro för nitrosaminer i charkprodukter. Nitrat från grönsaker räknas inte som ett problem eftersom de innehåller skyddande ämnen.','EFSA 2017',['nitrat','salpeter']);
+A('e252','Kaliumnitrat','mellan','Nitrat omvandlas delvis till nitrit i kroppen och ger samma oro för nitrosaminer i charkprodukter.','EFSA 2017');
+A('e260','Ättiksyra','låg','Samma syra som i vanlig ättika. Ofarlig vid normalt intag.','EFSA',['ättika']);
+A('e270','Mjölksyra','låg','Naturlig syra som även bildas i kroppen och vid jäsning. Ofarlig.','EFSA');
+const PROP = 'Konserveringsmedel mot mögel i bröd. Ofarligt för de flesta. En liten studie från 2002 kopplade propionat till beteendeförändringar hos barn, men det är inte bekräftat.';
+A('e280','Propionsyra','låg',PROP,'EFSA 2014');
+A('e281','Natriumpropionat','låg',PROP,'EFSA 2014');
+A('e282','Kalciumpropionat','låg',PROP,'EFSA 2014');
+A('e283','Kaliumpropionat','låg',PROP,'EFSA 2014');
+
+/* Antioxidanter och syror */
+A('e300','Askorbinsyra','låg','C-vitamin som antioxidant. Ofarlig.','EFSA 2015');
+A('e301','Natriumaskorbat','låg','C-vitamin som antioxidant. Ofarlig.','EFSA 2015');
+A('e306','Tokoferolrikt extrakt','låg','E-vitamin som antioxidant. Ofarlig.','EFSA 2015',['tokoferol']);
+A('e310','Propylgallat','mellan','Antioxidant i fetter. EFSA satte 2014 ett lågt tillåtet dagligt intag (1,4 mg/kg kroppsvikt). Kan ge allergisk hudreaktion hos känsliga.','EFSA 2014');
+A('e319','TBHQ','mellan','Syntetisk antioxidant i oljor och snacks. Höga doser har i djurförsök gett förstorad lever och förändringar i magslemhinnan. Tillåtet intag är lågt (0,7 mg/kg kroppsvikt).','EFSA 2004');
+A('e320','BHA','mellan','Syntetisk antioxidant i fett och chips. IARC klassar BHA som möjligen cancerframkallande (grupp 2B) utifrån djurförsök, och ämnet misstänks kunna störa hormonsystemet. EFSA satte 2011 ett tillåtet intag på 1 mg/kg kroppsvikt.','IARC, EFSA 2011',['butylhydroxianisol']);
+A('e321','BHT','mellan','Syntetisk antioxidant besläktad med BHA. EFSA satte 2012 ett tillåtet intag på 0,25 mg/kg kroppsvikt, och resultaten från djurförsök är blandade.','EFSA 2012',['butylhydroxitoluen']);
+A('e330','Citronsyra','låg',ACID,'EFSA 2015');
+A('e331','Natriumcitrat','låg',ACID,'EFSA');
+A('e332','Kaliumcitrat','låg',ACID,'EFSA');
+A('e333','Kalciumcitrat','låg',ACID,'EFSA');
+A('e334','Vinsyra','låg',ACID,'EFSA 2020');
+A('e296','Äppelsyra','låg',ACID,'EFSA');
+
+/* Fosfater */
+A('e338','Fosforsyra','mellan',PHOS,'EFSA 2019');
+A('e339','Natriumfosfater','mellan',PHOS,'EFSA 2019',['fosfater','natriumfosfat']);
+A('e340','Kaliumfosfater','mellan',PHOS,'EFSA 2019');
+A('e341','Kalciumfosfater','mellan',PHOS,'EFSA 2019');
+A('e450','Difosfater','mellan',PHOS,'EFSA 2019');
+A('e451','Trifosfater','mellan',PHOS,'EFSA 2019');
+A('e452','Polyfosfater','mellan',PHOS,'EFSA 2019');
+
+/* Förtjockning, emulgering */
+A('e401','Natriumalginat','låg',GUM,'EFSA 2017');
+A('e406','Agar','låg',GUM,'EFSA 2016');
+A('e407','Karragenan','mellan','Förtjockningsmedel från rödalger. Hos djur och i cellförsök har nedbrutet karragenan gett tarminflammation. EFSA såg 2018 ingen akut oro vid nuvarande intag men pekade på kunskapsluckor.','EFSA 2018');
+A('e410','Johannesbrödskärnmjöl','låg',GUM,'EFSA 2017');
+A('e412','Guarkärnmjöl','låg',GUM,'EFSA 2017',['guargummi']);
+A('e414','Gummi arabicum','låg',GUM,'EFSA 2017',['akaciagummi']);
+A('e415','Xantangummi','låg',GUM,'EFSA 2017');
+A('e418','Gellangummi','låg',GUM,'EFSA 2018');
+A('e440','Pektin','låg',GUM,'EFSA 2017');
+A('e460','Cellulosa','låg',GUM,'EFSA 2018');
+A('e461','Metylcellulosa','låg',GUM,'EFSA 2018');
+const EM2 = 'Emulgerande och förtjockande ämne. I musstudier (Chassaing m.fl., Nature 2015) ändrade ämnet tarmfloran och gav lätt inflammation. Bevisen hos människor är begränsade.';
+A('e432','Polysorbat 20','mellan',EM2,'Chassaing m.fl. 2015');
+A('e433','Polysorbat 80','mellan',EM2,'Chassaing m.fl. 2015');
+A('e466','Karboxymetylcellulosa','mellan',EM2,'Chassaing m.fl. 2015',['cmc']);
+A('e322','Lecitin','låg','Emulgeringsmedel från soja eller solros som även finns naturligt i ägg. Ofarligt för de flesta; sojalecitin kan innehålla spår av sojaprotein.','EFSA 2017',['sojalecitin','solroslecitin']);
+A('e471','Mono- och diglycerider av fettsyror','låg',EMUL,'EFSA 2017',['diglycerider','monoglycerider']);
+A('e472','Estrar av mono- och diglycerider','låg',EMUL,'EFSA 2020');
+A('e473','Sackarosestrar av fettsyror','låg',EMUL,'EFSA 2010');
+A('e476','Polyglycerolpolyricinoleat (PGPR)','låg',EMUL,'EFSA 2017',['pgpr']);
+A('e481','Natriumstearoyl-2-laktylat','låg',EMUL,'EFSA 2013');
+A('e500','Natriumkarbonater','låg','Bikarbonat och soda som jäsmedel och syraregulator. Ofarligt vid normalt intag.','EFSA 2015',['natriumbikarbonat','bikarbonat']);
+A('e170','Kalciumkarbonat','låg','Kalk som tillsats och kalktillskott. Ofarligt vid normalt intag.','EFSA 2011');
+A('e551','Kiseldioxid','låg','Klumpförebyggande medel. EFSA har pekat på kunskapsluckor kring nanopartiklar, men inga skador är påvisade vid normalt intag.','EFSA 2018');
+A('e422','Glycerol','låg','Fuktbevarande och sötande ämne. Ofarligt vid normalt intag; mycket stora mängder kan ge huvudvärk och lös mage.','EFSA');
+
+/* Sötningsmedel */
+A('e420','Sorbitol','låg',POLY,'EU 1169/2011');
+A('e421','Mannitol','låg',POLY,'EU 1169/2011');
+A('e965','Maltitol','låg',POLY,'EU 1169/2011');
+A('e966','Laktitol','låg',POLY,'EU 1169/2011');
+A('e967','Xylitol','låg',POLY+' Xylitol är mycket giftigt för hundar.','EU 1169/2011');
+A('e968','Erytritol','låg',POLY+' En studie 2023 kopplade höga nivåer av erytritol i blodet till fler hjärt-kärlhändelser. Det är observation och orsakssamband är inte bevisat.','EFSA 2023, Witkowski m.fl. 2023',['erytrit']);
+A('e950','Acesulfamkalium','mellan','Syntetiskt sötningsmedel. EFSA anser det säkert inom tillåtet intag. En stor fransk kohortstudie (NutriNet-Santé 2022) kopplade sötningsmedel, särskilt aspartam och acesulfamkalium, till något högre cancerrisk. Orsakssamband är inte visat.','EFSA, Debras m.fl. 2022',['acesulfam','acesulfam k']);
+A('e951','Aspartam','mellan','IARC klassade 2023 aspartam som möjligen cancerframkallande (grupp 2B), men WHO:s expertpanel JECFA behöll gränsen 40 mg/kg kroppsvikt per dag, långt över normalt intag. Måste undvikas vid fenylketonuri (PKU).','IARC/WHO 2023');
+A('e952','Cyklamat','mellan','Sötningsmedel som är förbjudet i USA men tillåtet i EU med en gräns. Barn som dricker mycket light-produkter kan komma nära gränsen.','EFSA 2000');
+A('e954','Sackarin','låg','Äldsta sötningsmedlet. Tidigare misstänkt för blåscancer utifrån råttförsök, men det gäller inte människa och IARC flyttade ämnet till grupp 3 (ej klassificerbart) 1999.','IARC 1999');
+A('e955','Sukralos','låg','Sötningsmedel. En studie 2023 visade att ett nedbrytningsämne kan skada DNA i cellförsök. EFSA har inte ändrat sin bedömning och evidens hos människor saknas.','EFSA, Schiffman m.fl. 2023');
+A('e960','Steviolglykosider','låg','Sötningsmedel från stevia. EFSA har satt ett tillåtet intag; vanligt intag ligger under det.','EFSA 2010',['stevia']);
+
+/* Smak, övrigt */
+const GLU = 'Smakförstärkare. Hos vissa personer misstänks huvudvärk eller obehag vid stora mängder, men det har inte kunnat visas i blindade studier. EFSA satte 2017 ett tillåtet intag (30 mg/kg kroppsvikt) eftersom intaget kan bli högt.';
+A('e621','Mononatriumglutamat (MSG)','låg',GLU,'EFSA 2017',['glutamat','mononatriumglutamat']);
+A('e620','Glutaminsyra','låg',GLU,'EFSA 2017');
+A('e622','Monokaliumglutamat','låg',GLU,'EFSA 2017');
+A('e627','Dinatriumguanylat','låg','Smakförstärkare som används tillsammans med glutamat. Personer med gikt bör vara försiktiga eftersom ämnet bryts ned till purin.','EFSA');
+A('e631','Dinatriuminosinat','låg','Smakförstärkare som används tillsammans med glutamat. Personer med gikt bör vara försiktiga eftersom ämnet bryts ned till purin.','EFSA');
+A('e635','Dinatrium-5-ribonukleotider','låg','Smakförstärkare som används tillsammans med glutamat. Personer med gikt bör vara försiktiga eftersom ämnet bryts ned till purin.','EFSA');
+A('e901','Bivax','låg','Glansmedel från bin (inte veganskt). Ofarligt.','EFSA 2007');
+A('e903','Karnaubavax','låg','Glansmedel från palmblad. Ofarligt.','EFSA 2012');
+A('e904','Shellack','låg','Glansmedel från insekter (inte veganskt). Ofarligt vid normalt intag.','EFSA 2013');
+A('e920','L-cystein','låg','Mjölbehandlingsmedel. Ofarligt vid normalt intag.','EFSA');
+A('e1520','Propylenglykol','låg','Lösningsmedel och fuktbevarare. Ofarligt vid normalt intag.','EFSA 2018');
+
+/* Ingredienser som inte är E-nummer */
+A(null,'Partiellt härdat fett','hög','Innehåller industriella transfetter. De höjer det onda LDL-kolesterolet, sänker det goda HDL-kolesterolet och ökar risken för hjärt-kärlsjukdom. EU begränsar transfett till 2 g per 100 g fett sedan 2021.','WHO, EU 2019/649',['partiellt härdat','partiellt härdade','partiellt härdad','delvis härdat','delvis härdade','delvis härdad','partiellt hydrogenerad','delvis hydrogenerad','partially hydrogenated']);
+A(null,'Tillsatt socker','info','Fritt socker ger snabb blodsockerstegring och bidrar till karies och viktuppgång. WHO rekommenderar att fritt socker ger mindre än 10 procent av energin, helst under 5 procent. Ligger redan i näringsbetyget.','WHO 2015',['socker','strösocker','rörsocker','farinsocker','glukos','dextros','fruktos','druvsocker','invertsocker','glukossirap','fruktossirap','glukos-fruktossirap','majssirap','isoglukos','sirap','maltos','sackaros']);
+A(null,'Palmolja','info','Cirka hälften mättat fett, som höjer LDL-kolesterolet jämfört med omättade oljor. Produktionen är dessutom förknippad med skogsavverkning.','WHO',['palmolja','palmfett','palmkärnolja','palmkärnfett']);
+A(null,'Maltodextrin','info','Snabbt kolhydratpulver som höjer blodsockret ungefär som socker. Används som fyllnadsmedel och är ett tecken på ultraprocessad mat.','Livsmedelsverket');
+A(null,'Modifierad stärkelse','info','Kemiskt eller fysikaliskt bearbetad stärkelse som förtjockningsmedel. Ofarlig vid normalt intag och ett tecken på ultraprocessad mat.','EFSA 2017',['modifierad majsstärkelse','modifierad potatisstärkelse','modifierad stärkelse']);
+A(null,'Hydrolyserat protein','info','Nedbrutet protein som smakförstärkare. Innehåller fritt glutamat, se MSG. Ett tecken på ultraprocessad mat.','EFSA',['hydrolyserat vegetabiliskt protein','hydrolyserat sojaprotein','hydrolyserat protein']);
+A(null,'Jästextrakt','info','Smakförstärkare som naturligt innehåller glutamat. Ofarligt för de flesta.','EFSA',['jästextrakt']);
+A(null,'Arom','info','Arom anges ofta utan att man ser vilka ämnen det är. Naturlig arom kan fortfarande vara industriellt framställd. Ett tecken på ultraprocessad mat men normalt ingen hälsorisk i sig.','EU 1334/2008',['arom','aromer','naturlig arom','naturliga aromer','aromämnen','smakämnen']);
+A(null,'Salt','info','Högt saltintag höjer blodtrycket. WHO rekommenderar under 5 g salt per dag.','WHO 2023',['salt','havssalt','natriumklorid','flingsalt']);
+
+/* ================= Tolkning av ingredienslistor ================= */
+const CAT = /^(färgämnen?|konserveringsmedel|emulgeringsmedel|emulgator|antioxidationsmedel|antioxidant|surhetsreglerande medel|surhetsreglerare|förtjockningsmedel|stabiliseringsmedel|stabilisator|sötningsmedel|smakförstärkare|ytbehandlingsmedel|klumpförebyggande medel|jäsmedel|vattenbindande medel|fyllnadsmedel|skumdämpande medel|geleringsmedel)\s*:?\s*/i;
+const LOOKS = /(syra|syror|sorbat|bensoat|nitrit|nitrat|fosfat|sulfit|glutamat|gummi|extrakt|isolat|hydrolys|modifierad|aspart|natrium|kalium|kalcium|magnesium|polys|glycerid|ester|cellulos|dextr|färg|konserv|emulg|stabil|\be\s?\d{3})/i;
+function norm(s){ return s.toLowerCase().replace(/\s+/g,' ').replace(/[.:*]+$/,'').trim(); }
+function matchEntry(s){
+  const m = s.match(/^e\s?-?\s?(\d{3,4})\s?([a-i])?(?![a-z0-9])/);
+  if(m){
+    const full = 'e'+m[1]+(m[2]||'');
+    return BYE[full] || BYE['e'+m[1]] || {unknownE:'E'+m[1]+(m[2]||'').toUpperCase()};
+  }
+  for(const e of KB) for(const a of e.aliases){
+    if(s===a || (a.length>=7 && s.includes(a))) return e;
+  }
+  return null;
+}
+function parseIngredients(text){
+  const flat = String(text||'').replace(/\d+([.,]\d+)?\s*%/g,' ').replace(/[()\[\]{}]/g,',').replace(/\b(samt|och)\b/gi,',');
+  return flat.split(/[,;•\n]/).map(norm).map(s=>s.replace(CAT,'').trim()).filter(s=>s.length>1)
+    .map(raw=>({raw, entry:matchEntry(raw)}));
+}
+function analyzeLocal(text, tags){
+  const items = parseIngredients(text);
+  const hits = new Map(), cands = new Map(), others = [];
+  const put = e=>hits.set(e.code||e.name, e);
+  for(const it of items){
+    if(it.entry && it.entry.unknownE) cands.set(keyOf(it.entry.unknownE), it.entry.unknownE);
+    else if(it.entry) put(it.entry);
+    else if(LOOKS.test(it.raw)) cands.set(keyOf(it.raw), it.raw);
+    else others.push(it.raw);
+  }
+  for(const t of (tags||[])){
+    const k = String(t).replace(/^[a-z]{2}:/,'').toLowerCase();
+    const m = k.match(/^e(\d{3,4})([a-z])?$/);
+    if(!m) continue;
+    const e = BYE['e'+m[1]+(m[2]||'')] || BYE['e'+m[1]];
+    if(e) put(e); else cands.set(k, k.toUpperCase());
+  }
+  return {items, hits, cands:[...cands.values()], others};
+}
+
+/* ================= Poäng ================= */
+const RISK_ORDER = {hög:0, mellan:1, okänd:2, låg:3, info:4};
+const RISK_COLOR = {hög:'var(--bad)', mellan:'var(--mid)', låg:'var(--good)', okänd:'var(--muted)', info:'var(--info)'};
+const RISK_LABEL = {hög:'hög risk', mellan:'måttlig risk', låg:'låg risk', okänd:'ej bedömd', info:'information'};
+const GRADE_PTS = {a:95,b:75,c:55,d:30,e:10};
+function sortEntries(a){ return a.sort((x,y)=>RISK_ORDER[x.risk]-RISK_ORDER[y.risk]); }
+function nutritionPoints(p){
+  const s = p.nutriscore_score;
+  if(typeof s === 'number') return clamp((40 - s)/55*100, 0, 100);
+  return GRADE_PTS[(p.nutriscore_grade||'').toLowerCase()] ?? null;
+}
+function additivePoints(entries){
+  const sc = entries.filter(e=>['hög','mellan','låg'].includes(e.risk));
+  if(!sc.length) return 100;
+  if(sc.some(e=>e.risk==='hög')) return 0;
+  const mid = sc.filter(e=>e.risk==='mellan').length;
+  if(mid>=2) return 35;
+  if(mid===1) return 55;
+  return 85;
+}
+function computeScore(p, entries){
+  const n = nutritionPoints(p), a = additivePoints(entries);
+  const organic = (p.labels_tags||[]).some(l=>/(^|:)organic$|en:eu-organic/.test(l)) ? 100 : 0;
+  let total = n===null ? (a*0.3 + organic*0.1)/0.4 : n*0.6 + a*0.3 + organic*0.1;
+  const capped = entries.some(e=>e.risk==='hög');
+  if(capped) total = Math.min(total, 49);
+  return {total:Math.round(total), n, a, organic, capped, complete:n!==null};
+}
+function verdict(t){
+  if(t>=75) return ['Utmärkt','var(--good)'];
+  if(t>=50) return ['Bra','var(--ok)'];
+  if(t>=25) return ['Medelmåttig','var(--mid)'];
+  return ['Dålig','var(--bad)'];
+}
+/* ==TESTABLE-END== */
+
+/* ================= Inställningar och lagring ================= */
+const MODEL = 'claude-sonnet-4-6';
+const CFG = Object.assign({apiKey:'', supabaseUrl:'', supabaseKey:''}, lsGet('ms_cfg',{}));
+let aiCache = lsGet('ms_ai',{});
+function modeText(){
+  if(CFG.supabaseUrl && CFG.supabaseKey) return 'Läge: delad databas med nätuppslag (Supabase).';
+  if(CFG.apiKey) return 'Läge: nätuppslag med din egen nyckel, databasen sparas lokalt.';
+  return 'Läge: endast inbyggd databas. Slå på nätuppslag under Inställningar.';
+}
+const sbOn = ()=>!!(CFG.supabaseUrl && CFG.supabaseKey);
+const aiOn = ()=>sbOn() || !!CFG.apiKey;
+const sbBase = ()=>CFG.supabaseUrl.replace(/\/$/,'');
+const sbHeaders = ()=>({apikey:CFG.supabaseKey, Authorization:'Bearer '+CFG.supabaseKey});
+async function sbGet(table, params){
+  const r = await fetch(`${sbBase()}/rest/v1/${table}?${new URLSearchParams(params)}`, {headers:sbHeaders()});
+  if(!r.ok) throw new Error('Databasen svarade '+r.status);
+  return r.json();
+}
+async function sbFn(body){
+  const r = await fetch(`${sbBase()}/functions/v1/assess`, {method:'POST', headers:{...sbHeaders(),'content-type':'application/json'}, body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('Databasfunktionen svarade '+r.status);
+  return r.json();
+}
+
+/* ================= Nätuppslag av okända ämnen ================= */
+const SYSTEM_PROMPT = `Du bedömer livsmedelsingredienser och tillsatser åt en svensk konsumentapp. Använd webbsökning och prioritera källor som EFSA, IARC, Livsmedelsverket, EU-kommissionen, WHO och Open Food Facts. Svara ENDAST med ett JSON-objekt, utan kodblock eller annan text:
+{"name":"ämnets svenska namn","risk":"låg|mellan|hög|okänd","effect":"2-3 meningar på svenska om vad ämnet gör i kroppen och varför det är eller inte är en risk. Ange osäkerhet.","sources":["https://..."]}
+Riskskala: hög = förbjuden i EU eller IARC grupp 1/2A i matrelevant användning. mellan = EU-varning, IARC 2B, EFSA-oro eller tydliga studier där orsakssamband inte är fastställt. låg = godkänd utan känd oro. okänd = du hittar ingen tillförlitlig källa. Gissa aldrig: välj okänd hellre än att hitta på. Är det ett vanligt livsmedel (till exempel mjölk eller vetemjöl) ska risk vara låg och effect "Vanligt livsmedel utan känd oro." Ange bara käll-URL:er du faktiskt har hittat.`;
+function parseAi(text){
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if(a<0 || b<a) throw new Error('Oväntat svar från AI');
+  const j = JSON.parse(text.slice(a,b+1));
+  const risk = ['låg','mellan','hög','okänd'].includes(j.risk) ? j.risk : 'okänd';
+  return {code:null, name:String(j.name||'').slice(0,80), risk, effect:String(j.effect||'').slice(0,700),
+          sources:(Array.isArray(j.sources)?j.sources:[]).filter(u=>/^https?:\/\//.test(u)).slice(0,3), ai:true};
+}
+async function viaDirect(name){
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':CFG.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:MODEL, max_tokens:1500, system:SYSTEM_PROMPT,
+      tools:[{type:'web_search_20250305', name:'web_search', max_uses:3}],
+      messages:[{role:'user', content:`Bedöm: "${name}"`}]})
+  });
+  if(!r.ok){
+    let m=''; try{ m=(await r.json()).error?.message||''; }catch(e){}
+    throw new Error('Anthropic svarade '+r.status+(m?': '+m:''));
+  }
+  const d = await r.json();
+  const text = (d.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n');
+  const e = parseAi(text);
+  if(!e.name) e.name = name;
+  return e;
+}
+async function resolveUnknown(names, onProgress){
+  const out = {}; let todo = [];
+  for(const n of names){ const k = keyOf(n); if(aiCache[k]) out[k] = aiCache[k]; else todo.push(n); }
+  if(sbOn() && todo.length){
+    try{
+      const keys = todo.map(n=>keyOf(n).replace(/["]/g,''));
+      const rows = await sbGet('ingredient_knowledge', {select:'*', key:`in.(${keys.map(k=>`"${k}"`).join(',')})`});
+      for(const r of rows){
+        out[r.key] = {code:null, name:r.name, risk:r.risk, effect:r.effect, sources:r.sources||[], ai:r.status!=='reviewed'};
+        aiCache[r.key] = out[r.key];
+      }
+      todo = todo.filter(n=>!out[keyOf(n)]);
+    }catch(e){ /* fortsätt med uppslag */ }
+  }
+  const failed = [];
+  for(let i=0;i<todo.length;i++){
+    const n = todo[i], k = keyOf(n);
+    onProgress && onProgress(i+1, todo.length, n);
+    try{
+      let e;
+      if(sbOn()){ const r = await sbFn({action:'assess', names:[n]}); e = r.results && r.results[k]; }
+      else e = await viaDirect(n);
+      if(e){ if(!e.name) e.name = n; out[k] = e; aiCache[k] = e; }
+    }catch(err){ failed.push(n+' ('+err.message+')'); }
+  }
+  lsSet('ms_ai', aiCache);
+  return {found:out, failed};
+}
+
+/* ================= Egen produktdatabas ================= */
+function localProducts(){ return lsGet('ms_prod',{}); }
+async function saveProduct(p){
+  const all = localProducts();
+  all[p.code] = {code:p.code, name:p.name, text:p.text, ts:Date.now()};
+  const keys = Object.keys(all).sort((a,b)=>all[b].ts-all[a].ts).slice(0,200);
+  const trimmed = {}; keys.forEach(k=>trimmed[k]=all[k]);
+  lsSet('ms_prod', trimmed);
+  if(sbOn()){
+    try{ await sbFn({action:'product', barcode:p.code, name:p.name, ingredients_text:p.text}); return 'sparad delat'; }
+    catch(e){ return 'sparad lokalt (delning misslyckades)'; }
+  }
+  return 'sparad lokalt';
+}
+async function findOwnProduct(code){
+  const l = localProducts()[code];
+  if(l) return l;
+  if(sbOn()){
+    try{
+      const rows = await sbGet('scanned_products', {select:'*', barcode:'eq.'+code});
+      if(rows[0]) return {code, name:rows[0].name, text:rows[0].ingredients_text};
+    }catch(e){}
+  }
+  return null;
+}
+
+/* ================= Gränssnitt ================= */
+function el(tag, attrs={}, ...kids){
+  const e = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs)){
+    if(k==='class') e.className=v; else e.setAttribute(k,v);
+  }
+  for(const k of kids) if(k!=null && k!==false) e.append(k.nodeType?k:document.createTextNode(k));
+  return e;
+}
+const statusEl = document.getElementById('status');
+function setStatus(t, err){ statusEl.textContent = t||''; statusEl.className = 'status'+(err?' err':''); }
+
+/* Förloppsvisning */
+const stepsEl = document.getElementById('steps');
+let stepItems = [], stepTick = null;
+function showSteps(list){
+  clearInterval(stepTick);
+  stepsEl.hidden = false; stepsEl.replaceChildren();
+  stepItems = list.map(t=>{
+    const li = el('li',{class:'pending'}, el('span',{class:'mk'}), el('span',{class:'tx'},t), el('span',{class:'pc'}));
+    stepsEl.append(li); return li;
+  });
+}
+function step(i, state, extra){
+  stepItems.forEach((li,j)=>{ if(j<i && (li.className==='pending'||li.className==='active')) li.className='done'; });
+  const li = stepItems[i]; if(!li) return;
+  li.className = state;
+  clearInterval(stepTick);
+  const pc = li.querySelector('.pc');
+  pc.textContent = extra || '';
+  if(state==='active' && extra===undefined){
+    const t0 = Date.now();
+    stepTick = setInterval(()=>{ pc.textContent = Math.floor((Date.now()-t0)/1000)+' s'; }, 500);
+  }
+}
+function skipFrom(i){ stepItems.forEach((li,j)=>{ if(j>=i && li.className==='pending') li.className='skip'; }); }
+function finishSteps(){
+  clearInterval(stepTick);
+  stepItems.forEach(li=>{ if(li.className==='pending'||li.className==='active') li.className='done'; });
+}
+
+function part(title, pts, desc, extra){
+  const c = pts===null ? 'var(--muted)' : verdict(pts)[1];
+  const kids = [
+    el('div',{class:'top'}, el('span',{},title), el('span',{}, pts===null?'saknas':Math.round(pts)+'/100')),
+    el('div',{class:'desc'},desc)
+  ];
+  if(pts!==null) kids.push(el('div',{class:'bar'}, el('i',{style:`width:${Math.round(pts)}%;--c:${c}`})));
+  if(extra) kids.push(extra);
+  return el('div',{class:'part',style:`--c:${c}`}, ...kids);
+}
+function entryRow(e){
+  const label = (e.code?e.code.toUpperCase()+' ':'')+e.name;
+  const body = el('div',{class:'body'}, el('div',{}, e.effect||'Ingen förklaring finns.'));
+  if(e.source) body.append(el('div',{class:'src'}, 'Källa: '+e.source));
+  if(e.sources && e.sources.length){
+    const s = el('div',{class:'src'}, 'Källor: ');
+    e.sources.forEach((u,i)=>{
+      let host = u; try{ host = new URL(u).hostname.replace(/^www\./,''); }catch(x){}
+      if(i) s.append(', ');
+      s.append(el('a',{href:u,target:'_blank',rel:'noopener'},host));
+    });
+    body.append(s);
+  }
+  if(e.ai) body.append(el('span',{class:'badge'},'AI-bedömning från nätet, ej granskad'));
+  return el('details',{class:'ing',style:`--c:${RISK_COLOR[e.risk]}`},
+    el('summary',{}, el('span',{class:'dot'}), el('span',{class:'nm'},label), el('span',{class:'rk'},RISK_LABEL[e.risk])), body);
+}
+function ingredientSection(res, noText){
+  const sec = el('div',{class:'part'},
+    el('div',{class:'top'}, el('span',{},'Ingredienser och tillsatser'), el('span',{}, res.entries.length+' markerade')),
+    el('div',{class:'desc'}, noText ? 'Ingen ingredienslista finns i databasen för den här produkten.' : 'Tryck på en rad för att se vad ämnet gör i kroppen.'));
+  res.entries.forEach(e=>sec.append(entryRow(e)));
+  if(noText){
+    const b = el('button',{type:'button',class:'link'},'Läs ingredienserna från ett foto');
+    b.addEventListener('click',()=>startPhotoCamera());
+    sec.append(b);
+  }
+  if(res.unresolved.length){
+    const names = res.unresolved.map(n=>n.replace(/ \(ingen tillförlitlig källa\)$/,''));
+    const box = el('div',{class:'unres'}, 'Ej bedömda: ');
+    names.forEach((n,i)=>{
+      if(i) box.append(', ');
+      box.append(el('a',{href:'https://duckduckgo.com/?q='+encodeURIComponent(n+' livsmedelstillsats hälsorisk'),target:'_blank',rel:'noopener'},n));
+    });
+    box.append('. Tryck på ett namn för att söka själv.');
+    const cp = el('button',{type:'button',class:'link'},'Kopiera listan så att de läggs till i databasen gratis');
+    cp.addEventListener('click', async ()=>{
+      const txt = 'Bedöm dessa ingredienser/tillsatser åt min matskanner och skriv varje som en rad i exakt det här formatet, med svensk förklaring av vad ämnet gör i kroppen och en källa (EFSA, IARC, EU eller liknande). Gissa inte: skriv "okänd" om du inte vet.\n'
+        + "A(kod eller null,'Namn','låg|mellan|hög|info','Förklaring.','Källa',['alias']);\n\nÄmnen:\n- " + names.join('\n- ');
+      try{ await navigator.clipboard.writeText(txt); cp.textContent = 'Kopierad. Klistra in i Claude-chatten och lägg raderna i filen.'; }
+      catch(e){ cp.textContent = 'Kunde inte kopiera automatiskt.'; }
+    });
+    sec.append(box, cp);
+  }
+  if(res.failed.length) sec.append(el('div',{class:'unres'}, 'Uppslag misslyckades för: '+res.failed.join('; ')));
+  if(res.others.length) sec.append(el('details',{class:'unres'}, el('summary',{style:'cursor:pointer'},`Övriga ingredienser (${res.others.length}), ingen känd oro`), res.others.join(', ')));
+  return sec;
+}
+
+/* ================= Analys: delar upp, jämför, slår upp ================= */
+const PIPE_STEPS = ['Delar upp ingredienslistan','Jämför med ingrediensdatabasen','Slår upp okända ämnen på nätet'];
+async function runPipeline(text, tags, s0){
+  step(s0,'active');
+  const loc = analyzeLocal(text, tags);
+  step(s0,'done', loc.items.length+' ingredienser');
+  step(s0+1,'active');
+  const entries = [...loc.hits.values()];
+  step(s0+1,'done', entries.length+' kända');
+  let unresolved = [], failed = [], aiNote = '';
+  if(!loc.cands.length){
+    step(s0+2,'done','inga okända');
+  }else if(!aiOn()){
+    unresolved = loc.cands;
+    step(s0+2,'done', loc.cands.length+' okända, nätuppslag av');
+  }else{
+    const names = loc.cands.slice(0,8);
+    unresolved = loc.cands.slice(8);
+    step(s0+2,'active');
+    const r = await resolveUnknown(names, (i,n,name)=>step(s0+2,'active',`${i}/${n} ${name}`));
+    failed = r.failed;
+    for(const n of names){
+      const e = r.found[keyOf(n)];
+      if(e && e.risk!=='okänd') entries.push(e);
+      else unresolved.push(e && e.name ? e.name+' (ingen tillförlitlig källa)' : n);
+    }
+    step(s0+2,'done', names.length+' uppslagna');
+  }
+  sortEntries(entries);
+  return {entries, unresolved, failed, others:loc.others, itemCount:loc.items.length};
+}
+
+/* ================= Resultatkort ================= */
+let pendingCode = null;
+function renderProduct(p, res, fromOwn){
+  const s = computeScore(p, res.entries);
+  const [word,color] = verdict(s.total);
+  const out = document.getElementById('out'); out.replaceChildren();
+  const sub = [p.brands, p.quantity].filter(Boolean).join(', ');
+  const card = el('div',{class:'result'},
+    el('div',{class:'head'},
+      p.image_front_small_url ? el('img',{src:p.image_front_small_url,alt:''}) : el('div',{class:'noimg'}),
+      el('div',{}, el('div',{class:'name'}, p.product_name||'Namnlös produkt'), sub?el('div',{class:'sub'},sub):null)),
+    el('div',{class:'verdict',style:`--c:${color}`}, el('span',{class:'num'},String(s.total)), el('span',{class:'of'},'/100'), el('span',{class:'word'},word)));
+  if(s.capped) card.append(el('div',{class:'note'},'Betyget är begränsat till 49 eftersom produkten innehåller en tillsats med hög risk.'));
+  if(!s.complete) card.append(el('div',{class:'note soft'},'Näringsvärde saknas. Betyget bygger bara på tillsatser och ekologiskt, så det är ofullständigt.'));
+  if(p.nova_group==4) card.append(el('div',{class:'note soft'},'Klassad som ultraprocessad (NOVA 4): industriellt framställd av ingredienser som sällan finns i ett vanligt kök.'));
+  const addCount = res.entries.filter(e=>['hög','mellan','låg'].includes(e.risk)).length;
+  card.append(
+    part('Näringskvalitet (60 %)', s.n, p.nutriscore_grade && /^[a-e]$/i.test(p.nutriscore_grade) ? `Nutri-Score ${p.nutriscore_grade.toUpperCase()} enligt Open Food Facts.` : 'Nutri-Score saknas för produkten.'),
+    part('Tillsatser (30 %)', s.a, addCount ? `${addCount} tillsats${addCount>1?'er':''} med bedömning, se listan nedan.` : 'Inga bedömda tillsatser hittades.'),
+    part('Ekologiskt (10 %)', s.organic, s.organic ? 'Märkt som ekologisk.' : 'Ingen ekologisk märkning registrerad.'),
+    ingredientSection(res, !(p.ingredients_text_sv||p.ingredients_text||p.__text) && !res.entries.length),
+    el('div',{class:'foot'}, fromOwn ? 'Ingredienserna kommer från en användare i din databas. ' : 'Källa: ',
+      !fromOwn ? el('a',{href:`https://world.openfoodfacts.org/product/${encodeURIComponent(p.code)}`,target:'_blank',rel:'noopener'},'Open Food Facts') : null,
+      !fromOwn ? '. Data kan vara fel eller föråldrad. Rätta den där.' : 'Näringsvärde saknas därför.'));
+  out.append(card);
+  return s;
+}
+function renderOcr(res, name){
+  const pts = additivePoints(res.entries);
+  const [word,color] = verdict(pts);
+  const out = document.getElementById('out'); out.replaceChildren();
+  const addCount = res.entries.filter(e=>['hög','mellan','låg'].includes(e.risk)).length;
+  out.append(el('div',{class:'result'},
+    el('div',{class:'head'}, el('div',{}, el('div',{class:'name'},name), el('div',{class:'sub'},'Betyget gäller bara tillsatser'))),
+    el('div',{class:'verdict',style:`--c:${color}`}, el('span',{class:'num'},String(Math.round(pts))), el('span',{class:'of'},'/100'), el('span',{class:'word'},word)),
+    part('Tillsatser', pts, addCount ? `${addCount} tillsats${addCount>1?'er':''} med bedömning, se listan nedan.` : 'Inga bedömda tillsatser hittades. Kontrollera att hela listan blev utläst.'),
+    ingredientSection(res, false),
+    el('div',{class:'foot'},'Näringsinnehåll och ekologisk märkning kan inte bedömas från en ingredienslista, så det här är inget totalbetyg. "Utmärkt" betyder bara att inga kända tillsatser hittades.')));
+}
+
+/* ================= Historik ================= */
+function loadHistory(){ return lsGet('ms_hist',[]); }
+function saveHistory(item){
+  const h = loadHistory().filter(x=>x.code!==item.code);
+  h.unshift(item); lsSet('ms_hist', h.slice(0,20)); renderHistory();
+}
+function renderHistory(){
+  const h = loadHistory();
+  document.getElementById('histH').hidden = !h.length;
+  const ul = document.getElementById('hist'); ul.replaceChildren();
+  h.forEach(x=>{
+    const b = el('button',{type:'button'}, el('span',{class:'s',style:`--c:${verdict(x.score)[1]}`}, String(x.score)), el('span',{class:'n'}, x.name));
+    b.addEventListener('click',()=>search(x.code));
+    ul.append(el('li',{},b));
+  });
+}
+
+/* ================= Streckkodsflöde ================= */
+const FIELDS = ['code','product_name','brands','quantity','image_front_small_url','nutriscore_grade','nutriscore_score',
+  'additives_tags','labels_tags','nova_group','ingredients_text','ingredients_text_sv'].join(',');
+async function fetchProduct(code){
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${FIELDS}`;
+  const ctl = new AbortController(); const to = setTimeout(()=>ctl.abort(), 15000);
+  try{
+    const r = await fetch(url, {signal:ctl.signal});
+    if(!r.ok) throw new Error('Nätverksfel ('+r.status+')');
+    const j = await r.json();
+    if(j.status !== 1 || !j.product) return null;
+    return j.product;
+  }catch(e){
+    if(e.name==='AbortError') throw new Error('Open Food Facts svarade inte inom 15 sekunder');
+    throw e;
+  }finally{ clearTimeout(to); }
+}
+async function search(code){
+  code = String(code||'').replace(/\D/g,'');
+  if(code.length < 8){ setStatus('Streckkoden måste ha minst 8 siffror.', true); return; }
+  document.getElementById('code').value = code;
+  document.getElementById('editor').hidden = true;
+  document.getElementById('out').replaceChildren();
+  setStatus(''); pendingCode = null;
+  // 0 kontroll, 1 OFF, 2 egen databas, 3-5 analys, 6 betyg
+  showSteps(['Kontrollerar streckkoden','Hämtar produkten från Open Food Facts','Söker i din egen produktdatabas',...PIPE_STEPS,'Beräknar betyget']);
+  let cur = 1;
+  try{
+    step(1,'active');
+    const p = await fetchProduct(code);
+    if(p){
+      step(1,'done'); step(2,'done','behövs inte');
+      cur = 3;
+      const res = await runPipeline(p.ingredients_text_sv||p.ingredients_text||'', p.additives_tags, 3);
+      cur = 6; step(6,'active');
+      const s = renderProduct(p, res, false);
+      saveHistory({code, name:p.product_name||'Namnlös produkt', score:s.total});
+      finishSteps();
+      document.getElementById('out').scrollIntoView({behavior:'smooth',block:'start'});
+      return;
+    }
+    step(1,'fail','saknas');
+    cur = 2; step(2,'active');
+    const own = await findOwnProduct(code);
+    if(own){
+      step(2,'done','hittad');
+      cur = 3;
+      const res = await runPipeline(own.text, [], 3);
+      cur = 6; step(6,'active');
+      const fake = {code, product_name:own.name, __text:own.text};
+      const s = renderProduct(fake, res, true);
+      saveHistory({code, name:own.name||'Namnlös produkt', score:s.total});
+      finishSteps();
+      document.getElementById('out').scrollIntoView({behavior:'smooth',block:'start'});
+      return;
+    }
+    step(2,'fail','saknas');
+    skipFrom(3);
+    pendingCode = code;
+    const b = el('button',{type:'button',class:'link'},'Läs ingredienserna från ett foto');
+    b.addEventListener('click',()=>startPhotoCamera());
+    statusEl.className = 'status err';
+    statusEl.replaceChildren(`Produkten ${code} finns varken i Open Food Facts eller i din databas. Läser du in ingredienserna sparas de under den här streckkoden. `, b);
+  }catch(e){
+    step(cur,'fail');
+    setStatus('Något gick fel: '+e.message, true);
+  }
+}
+
+/* ================= Skanner ================= */
+const vf = document.getElementById('vf');
+const video = document.getElementById('video');
+const scanBtn = document.getElementById('scanBtn');
+let stream = null, scanning = false, photoMode = false, zxingReader = null, lastHit = '', hintTimer = null;
+const ocrBtn = document.getElementById('ocrBtn'), shotBtn = document.getElementById('shotBtn');
+
+async function startScan(){
+  if(scanning) return stopScan();
+  if(photoMode) stopScan();
+  if(!navigator.mediaDevices || !window.isSecureContext){
+    setStatus('Kameran kräver HTTPS. Lägg appen på GitHub Pages eller liknande.', true); return;
+  }
+  document.getElementById('editor').hidden = true;
+  showSteps(['Startar kameran','Letar efter streckkod']);
+  step(0,'active');
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}, audio:false});
+  }catch(e){
+    step(0,'fail','nekad');
+    setStatus('Ingen kameraåtkomst. Tillåt kameran i webbläsaren, skriv koden manuellt eller läs ingredienser från foto.', true); return;
+  }
+  video.srcObject = stream;
+  await video.play();
+  vf.classList.add('on');
+  scanning = true; scanBtn.textContent = 'Stoppa'; setStatus('');
+  step(1,'active');
+  hintTimer = setTimeout(()=>setStatus('Hittar ingen streckkod. Håll 15–25 cm avstånd med bra ljus, eller använd Läs ingredienser från foto.'), 15000);
+
+  if('BarcodeDetector' in window){
+    const det = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']});
+    const tick = async ()=>{
+      if(!scanning) return;
+      try{ const codes = await det.detect(video); if(codes.length) return onCode(codes[0].rawValue); }catch(e){}
+      setTimeout(()=>requestAnimationFrame(tick), 200);
+    };
+    tick();
+  }else{
+    await loadScript('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js','skannerbiblioteket').catch(e=>{ setStatus(e.message,true); stopScan(); });
+    if(!window.ZXing || !scanning) return;
+    zxingReader = new ZXing.BrowserMultiFormatReader();
+    zxingReader.decodeFromStream(stream, video, (result)=>{ if(result && scanning) onCode(result.getText()); });
+  }
+}
+function stopScan(){
+  scanning = false; photoMode = false; clearTimeout(hintTimer);
+  ocrBtn.textContent = 'Läs ingredienser från foto'; shotBtn.hidden = true;
+  try{ zxingReader && zxingReader.reset(); }catch(e){}
+  zxingReader = null;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  video.srcObject = null; vf.classList.remove('on');
+  scanBtn.textContent = 'Skanna streckkod';
+}
+function onCode(code){
+  if(code === lastHit && !scanning) return;
+  lastHit = code;
+  if(navigator.vibrate) navigator.vibrate(60);
+  stopScan(); search(code);
+}
+function loadScript(src, what){
+  return new Promise((res,rej)=>{
+    const s = document.createElement('script');
+    s.src = src; s.onload = res;
+    s.onerror = ()=>rej(new Error('Kunde inte ladda '+what+'. Kontrollera nätverket.'));
+    document.head.append(s);
+  });
+}
+
+/* ================= Foto av ingredienslista (OCR) ================= */
+const TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const photo = document.getElementById('photo');
+const editor = document.getElementById('editor');
+function prepareImage(file){
+  return new Promise((res,rej)=>{
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = ()=>{
+      const sc = Math.min(1, 2000/Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url); res(c);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('Kunde inte öppna bilden.')); };
+    img.src = url;
+  });
+}
+function extractIngredients(raw){
+  let t = raw.replace(/\r/g,'').replace(/-\n/g,'').replace(/\n+/g,' ').replace(/\s{2,}/g,' ').trim();
+  const i = t.search(/ingredi\w*\s*[:.]?/i);
+  if(i>=0) t = t.slice(i).replace(/^ingredi\w*\s*[:.]?\s*/i,'');
+  const j = t.search(/(näringsvärde|näringsinnehåll|näringsdeklaration|förvaras|förvaring|tillverkad|producerad|bäst före|nutrition)/i);
+  if(j>0) t = t.slice(0,j);
+  return t.trim();
+}
+async function runOcr(file){
+  document.getElementById('out').replaceChildren();
+  editor.hidden = true; setStatus('');
+  showSteps(['Förbereder bilden','Laddar textläsaren (första gången några MB)','Läser texten i bilden','Letar efter ingredienslistan']);
+  let cur = 0;
+  try{
+    step(0,'active');
+    const canvas = (file instanceof HTMLCanvasElement) ? file : await prepareImage(file);
+    cur = 1; step(1,'active');
+    if(!window.Tesseract) await loadScript(TESS_URL,'textläsaren');
+    const worker = await Tesseract.createWorker(['swe','eng'], 1, {
+      logger: m=>{
+        if(/loading/.test(m.status||'') && typeof m.progress==='number') step(1,'active',Math.round(m.progress*100)+' %');
+        if(m.status==='recognizing text') step(2,'active',Math.round(m.progress*100)+' %');
+      }
+    });
+    cur = 2; step(2,'active','0 %');
+    const {data} = await worker.recognize(canvas);
+    await worker.terminate();
+    cur = 3; step(3,'active');
+    const text = extractIngredients(data.text||'');
+    finishSteps();
+    document.getElementById('ocrText').value = text;
+    const bind = document.getElementById('ocrBind');
+    bind.hidden = !pendingCode;
+    if(pendingCode) bind.textContent = 'Ingredienserna sparas under streckkod '+pendingCode+'.';
+    editor.hidden = false;
+    if(text.replace(/\s/g,'').length < 15)
+      setStatus('Hittade nästan ingen text. Ta ett närmare foto rakt framifrån med bra ljus, eller skriv in texten själv.', true);
+    editor.scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){
+    step(cur,'fail'); setStatus('Textläsningen misslyckades: '+e.message, true);
+  }
+}
+async function startPhotoCamera(){
+  if(photoMode) return stopScan();            // andra tryckningen = avbryt
+  if(scanning) stopScan();
+  if(!navigator.mediaDevices || !window.isSecureContext){
+    setStatus('Kameran kräver HTTPS. Använd "Välj en befintlig bild istället".', true); return;
+  }
+  editor.hidden = true; document.getElementById('out').replaceChildren(); setStatus('');
+  showSteps(['Startar kameran','Rikta kameran mot ingredienslistan']);
+  step(0,'active');
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}, audio:false});
+  }catch(e){
+    step(0,'fail','nekad');
+    setStatus('Ingen kameraåtkomst. Tillåt kameran i webbläsaren eller välj en befintlig bild.', true); return;
+  }
+  video.srcObject = stream;
+  await video.play();
+  vf.classList.add('on');
+  photoMode = true; ocrBtn.textContent = 'Avbryt'; shotBtn.hidden = false;
+  step(1,'active','tryck Ta bild');
+  setStatus('Håll telefonen stilla 15–20 cm från texten, vänta tills den är skarp och tryck Ta bild.');
+}
+function takeShot(){
+  if(!photoMode || !video.videoWidth) return;
+  const sc = Math.min(1, 2000/Math.max(video.videoWidth, video.videoHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.round(video.videoWidth*sc); c.height = Math.round(video.videoHeight*sc);
+  c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+  if(navigator.vibrate) navigator.vibrate(40);
+  stopScan();
+  runOcr(c);
+}
+async function analyzeOcr(){
+  const text = document.getElementById('ocrText').value.trim();
+  if(text.length < 5){ setStatus('Läs in eller skriv en ingredienslista först.', true); return; }
+  const name = document.getElementById('ocrName').value.trim() || 'Ingredienser från foto';
+  setStatus('');
+  showSteps([...PIPE_STEPS,'Sparar i produktdatabasen','Beräknar betyget']);
+  let cur = 0;
+  try{
+    const res = await runPipeline(text, [], 0);
+    cur = 3; step(3,'active');
+    const code = pendingCode || 'txt-'+hash(keyOf(text));
+    const how = await saveProduct({code, name, text});
+    step(3,'done', how);
+    cur = 4; step(4,'active');
+    renderOcr(res, name);
+    if(pendingCode){ saveHistory({code:pendingCode, name, score:additivePoints(res.entries)}); pendingCode = null; document.getElementById('ocrBind').hidden = true; }
+    finishSteps();
+    document.getElementById('out').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){
+    step(cur,'fail'); setStatus('Analysen misslyckades: '+e.message, true);
+  }
+}
+
+/* ================= Inställningspanel och start ================= */
+function initSettings(){
+  const f = id=>document.getElementById(id);
+  f('cfgKey').value = CFG.apiKey; f('cfgUrl').value = CFG.supabaseUrl; f('cfgAnon').value = CFG.supabaseKey;
+  f('cfgSave').addEventListener('click',()=>{
+    CFG.apiKey = f('cfgKey').value.trim(); CFG.supabaseUrl = f('cfgUrl').value.trim(); CFG.supabaseKey = f('cfgAnon').value.trim();
+    lsSet('ms_cfg', CFG);
+    f('cfgMsg').textContent = 'Sparat. '+modeText(); f('mode').textContent = modeText();
+  });
+  f('cfgClear').addEventListener('click',()=>{
+    try{ localStorage.removeItem('ms_ai'); localStorage.removeItem('ms_prod'); }catch(e){}
+    aiCache = {}; f('cfgMsg').textContent = 'Lokal databas rensad.';
+  });
+  f('mode').textContent = modeText();
+}
+scanBtn.addEventListener('click', startScan);
+document.getElementById('lookupBtn').addEventListener('click', ()=>search(document.getElementById('code').value));
+document.getElementById('code').addEventListener('keydown', e=>{ if(e.key==='Enter') search(e.target.value); });
+ocrBtn.addEventListener('click', startPhotoCamera);
+shotBtn.addEventListener('click', takeShot);
+document.getElementById('galleryBtn').addEventListener('click', ()=>{ if(scanning||photoMode) stopScan(); photo.click(); });
+photo.addEventListener('change', ()=>{ const f = photo.files[0]; photo.value=''; if(f) runOcr(f); });
+document.getElementById('analyzeBtn').addEventListener('click', analyzeOcr);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden && (scanning||photoMode)) stopScan(); });
+initSettings(); renderHistory();
+</script>
+</body>
+</html>
